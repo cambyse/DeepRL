@@ -90,7 +90,7 @@ class ImageToPyTorch(gym.ObservationWrapper):
 
 class ScaledFloatFrame(gym.ObservationWrapper):
     def observation(self, obs):
-        return np.array(obs).astype(np.float32) / 255.0
+        return np.array(obs).astype(np.float32) / 1.0
 
 
 class BufferWrapper(gym.ObservationWrapper):

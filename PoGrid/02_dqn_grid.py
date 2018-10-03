@@ -18,14 +18,14 @@ from tensorboardX import SummaryWriter
 DEFAULT_ENV_NAME = "pogrid-fo-84-v0"
 MEAN_REWARD_BOUND = 19.5
 
-GAMMA = 0.99
+GAMMA = 0.95
 BATCH_SIZE = 32
 REPLAY_SIZE = 10000
 LEARNING_RATE = 1e-4
 SYNC_TARGET_FRAMES = 1000
 REPLAY_START_SIZE = 10000
 
-EPSILON_DECAY_LAST_FRAME = 10**5
+EPSILON_DECAY_LAST_FRAME = 0.1 * 10**5
 EPSILON_START = 1.0
 EPSILON_FINAL = 0.02
 
@@ -74,7 +74,7 @@ class Agent:
 
         # do step in the environment
         new_state, reward, is_done, _ = self.env.step(action)
-        self.env.render()
+        #self.env.render()
         self.total_reward += reward
         new_state = new_state
 
@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     while True:
         frame_idx += 1
-        epsilon = max(EPSILON_FINAL, EPSILON_START - frame_idx / EPSILON_DECAY_LAST_FRAME)
+        epsilon = max(EPSILON_FINAL, EPSILON_START - max( 0, frame_idx - REPLAY_START_SIZE ) / EPSILON_DECAY_LAST_FRAME)
 
         reward = agent.play_step(net, epsilon, device=device)
         if reward is not None:
