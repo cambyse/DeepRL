@@ -5,14 +5,15 @@ import argparse
 import numpy as np
 
 import torch
+import gym_pogrid
 
 from lib import wrappers
 from lib import dqn_model
 
 import collections
 
-DEFAULT_ENV_NAME = "PongNoFrameskip-v4"
-FPS = 25
+DEFAULT_ENV_NAME = "pogrid-fo-84-v0"
+FPS = 10
 
 
 if __name__ == "__main__":
@@ -46,6 +47,7 @@ if __name__ == "__main__":
         state, reward, done, _ = env.step(action)
         total_reward += reward
         if done:
+            env.render()
             break
         if args.visualize:
             delta = 1/FPS - (time.time() - start_ts)
