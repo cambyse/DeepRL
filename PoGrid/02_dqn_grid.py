@@ -6,6 +6,8 @@ import argparse
 import time
 import numpy as np
 import collections
+import datetime
+
 import gym_pogrid
 
 import torch
@@ -16,7 +18,7 @@ from tensorboardX import SummaryWriter
 
 
 DEFAULT_ENV_NAME = "pogrid-fo-84-v0"
-MEAN_REWARD_BOUND = 19.5
+MEAN_REWARD_BOUND = 3.0
 
 GAMMA = 0.95
 BATCH_SIZE = 32
@@ -87,7 +89,25 @@ class Agent:
         return done_reward
 
 
-def calc_loss(batch, net, tgt_net, device="cpu"):
+#def calc_loss(batch, net, tgt_net, device="cpu"):
+#    states, actions, rewards, dones, next_states = batch
+
+#    states_v = torch.tensor(states).to(device)
+#    next_states_v = torch.tensor(next_states).to(device)
+#    actions_v = torch.tensor(actions).to(device)
+#    rewards_v = torch.tensor(rewards).to(device)
+#    done_mask = torch.ByteTensor(dones).to(device)
+
+#    state_action_values = net(states_v).gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
+#    next_state_values = tgt_net(next_states_v).max(1)[0]
+#    next_state_values[done_mask] = 0.0
+#    next_state_values = next_state_values.detach()
+
+#    expected_state_action_values = next_state_values * GAMMA + rewards_v
+#    return nn.MSELoss()(state_action_values, expected_state_action_values)
+
+def calc_loss_double(batch, net, tgt_net, gamma, device="cpu", double=True):
+    #states, actions, rewards, dones, next_states = common.unpack_batch(batch)
     states, actions, rewards, dones, next_states = batch
 
     states_v = torch.tensor(states).to(device)
@@ -97,15 +117,19 @@ def calc_loss(batch, net, tgt_net, device="cpu"):
     done_mask = torch.ByteTensor(dones).to(device)
 
     state_action_values = net(states_v).gather(1, actions_v.unsqueeze(-1)).squeeze(-1)
-    next_state_values = tgt_net(next_states_v).max(1)[0]
+    if double:
+        next_state_actions = net(next_states_v).max(1)[1]
+        next_state_values = tgt_net(next_states_v).gather(1, next_state_actions.unsqueeze(-1)).squeeze(-1)
+    else:
+        next_state_values = tgt_net(next_states_v).max(1)[0]
     next_state_values[done_mask] = 0.0
-    next_state_values = next_state_values.detach()
 
-    expected_state_action_values = next_state_values * GAMMA + rewards_v
+    expected_state_action_values = next_state_values.detach() * gamma + rewards_v
     return nn.MSELoss()(state_action_values, expected_state_action_values)
 
 
 if __name__ == "__main__":
+    now = str(datetime.datetime.now()).replace(" ","-")
     parser = argparse.ArgumentParser()
     parser.add_argument("--cuda", default=False, action="store_true", help="Enable cuda")
     parser.add_argument("--env", default=DEFAULT_ENV_NAME,
@@ -117,8 +141,13 @@ if __name__ == "__main__":
 
     env = wrappers.make_env(args.env)
 
-    net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
-    tgt_net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
+    #net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
+    #tgt_net = dqn_model.DQN(env.observation_space.shape, env.action_space.n).to(device)
+    #net     = dqn_model.DuelingDQN(env.observation_space.shape, env.action_space.n).to(device)
+    #tgt_net = dqn_model.DuelingDQN(env.observation_space.shape, env.action_space.n).to(device)
+    net = dqn_model.LstmDQN(env.observation_space.shape, env.action_space.n).to(device)
+    tgt_net = dqn_model.LstmDQN(env.observation_space.shape, env.action_space.n).to(device)
+   
     writer = SummaryWriter(comment="-" + args.env)
     print(net)
 
@@ -153,7 +182,7 @@ if __name__ == "__main__":
             writer.add_scalar("reward_100", mean_reward, frame_idx)
             writer.add_scalar("reward", reward, frame_idx)
             if best_mean_reward is None or best_mean_reward < mean_reward:
-                torch.save(net.state_dict(), args.env + "-best.dat")
+                torch.save(net.state_dict(), args.env + "-" + str(now) + "-best.dat")
                 if best_mean_reward is not None:
                     print("Best mean reward updated %.3f -> %.3f, model saved" % (best_mean_reward, mean_reward))
                 best_mean_reward = mean_reward
@@ -169,7 +198,8 @@ if __name__ == "__main__":
 
         optimizer.zero_grad()
         batch = buffer.sample(BATCH_SIZE)
-        loss_t = calc_loss(batch, net, tgt_net, device=device)
+        #loss_t = calc_loss(batch, net, tgt_net, device=device)
+        loss_t = calc_loss_double(batch, net, tgt_net, GAMMA, device=device)
         loss_t.backward()
         optimizer.step()
     writer.close()

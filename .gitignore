@@ -9,4 +9,5 @@ recording
 __pycache__
 *.png
 *.pyc
+#*.tfevents.*
 roboschool-files
